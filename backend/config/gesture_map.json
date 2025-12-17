@@ -1,0 +1,185 @@
+{
+  "gestures": {
+    "fist": {
+      "action": "left_click",
+      "params": {},
+      "cooldown_ms": 500,
+      "min_confidence": 0.8,
+      "description": "Left mouse click"
+    },
+    "open_palm": {
+      "action": "stop",
+      "params": {},
+      "cooldown_ms": 0,
+      "min_confidence": 0.7,
+      "description": "Pause all actions"
+    },
+    "point_up": {
+      "action": "scroll",
+      "params": {
+        "direction": "up",
+        "amount": 3
+      },
+      "cooldown_ms": 100,
+      "min_confidence": 0.75,
+      "description": "Scroll page up"
+    },
+    "point_down": {
+      "action": "scroll",
+      "params": {
+        "direction": "down",
+        "amount": 3
+      },
+      "cooldown_ms": 100,
+      "min_confidence": 0.75,
+      "description": "Scroll page down"
+    },
+    "victory": {
+      "action": "key_press",
+      "params": {
+        "key": "enter"
+      },
+      "cooldown_ms": 800,
+      "min_confidence": 0.85,
+      "description": "Press Enter key"
+    },
+    "thumbs_up": {
+      "action": "stop_control",
+      "params": {},
+      "cooldown_ms": 0,
+      "min_confidence": 0.85,
+      "description": "Safety stop - disable gesture control"
+    },
+    "thumbs_down": {
+      "action": "shortcut",
+      "params": {
+        "keys": [
+          "ctrl",
+          "z"
+        ]
+      },
+      "cooldown_ms": 500,
+      "min_confidence": 0.85,
+      "description": "Undo (Ctrl+Z)"
+    },
+    "pinch": {
+      "action": "left_click",
+      "params": {},
+      "cooldown_ms": 300,
+      "min_confidence": 0.75,
+      "description": "Left click (pinch index + thumb)"
+    },
+    "point_left": {
+      "action": "shortcut",
+      "params": {
+        "keys": [
+          "alt",
+          "left"
+        ]
+      },
+      "cooldown_ms": 500,
+      "min_confidence": 0.8,
+      "description": "Navigate back"
+    },
+    "point_right": {
+      "action": "shortcut",
+      "params": {
+        "keys": [
+          "alt",
+          "right"
+        ]
+      },
+      "cooldown_ms": 500,
+      "min_confidence": 0.8,
+      "description": "Navigate forward"
+    },
+    "swipe_left": {
+      "action": "shortcut",
+      "params": {
+        "keys": [
+          "alt",
+          "tab"
+        ]
+      },
+      "cooldown_ms": 800,
+      "min_confidence": 0.75,
+      "description": "Switch windows (Alt+Tab)"
+    },
+    "swipe_right": {
+      "action": "shortcut",
+      "params": {
+        "keys": [
+          "ctrl",
+          "tab"
+        ]
+      },
+      "cooldown_ms": 800,
+      "min_confidence": 0.75,
+      "description": "Switch tabs (Ctrl+Tab)"
+    },
+    "two_finger_pinch": {
+      "action": "right_click",
+      "params": {},
+      "cooldown_ms": 400,
+      "min_confidence": 0.75,
+      "description": "Right click (thumb + index + middle)"
+    },
+    "pinch_hold": {
+      "action": "drag",
+      "params": {
+        "button": "left"
+      },
+      "cooldown_ms": 0,
+      "min_confidence": 0.7,
+      "description": "Drag and drop (hold pinch 500ms+)"
+    },
+    "swipe_up": {
+      "action": "scroll",
+      "params": {
+        "direction": "up",
+        "amount": 5
+      },
+      "cooldown_ms": 200,
+      "min_confidence": 0.7,
+      "description": "Scroll up (swipe palm up)"
+    },
+    "swipe_down": {
+      "action": "scroll",
+      "params": {
+        "direction": "down",
+        "amount": 5
+      },
+      "cooldown_ms": 200,
+      "min_confidence": 0.7,
+      "description": "Scroll down (swipe palm down)"
+    },
+    "three_fingers": {
+      "action": "show_keyboard",
+      "params": {},
+      "cooldown_ms": 1000,
+      "min_confidence": 0.8,
+      "description": "Show virtual keyboard"
+    },
+    "both_palms": {
+      "action": "stop_control",
+      "params": {},
+      "cooldown_ms": 0,
+      "min_confidence": 0.7,
+      "description": "Emergency stop - disable gesture control"
+    }
+  },
+  "mouse_control": {
+    "enabled": true,
+    "mode": "relative",
+    "sensitivity": 4.0,
+    "smoothing": 0.1,
+    "deadzone": 0.002,
+    "relative_speed": 25.0
+  },
+  "settings": {
+    "hold_to_activate": false,
+    "hold_duration_ms": 300,
+    "safety_mode": true,
+    "show_cursor_preview": true
+  }
+}

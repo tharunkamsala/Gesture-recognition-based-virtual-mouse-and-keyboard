@@ -1,0 +1,75 @@
+{
+    "name": "gestureflow",
+    "version": "1.0.0",
+    "description": "Gesture Recognition Control System",
+    "main": "main.js",
+    "author": "GestureFlow",
+    "license": "MIT",
+    "scripts": {
+        "start": "electron .",
+        "dev": "NODE_ENV=development electron .",
+        "build": "electron-builder",
+        "build:mac": "electron-builder --mac",
+        "build:win": "electron-builder --win",
+        "build:linux": "electron-builder --linux"
+    },
+    "build": {
+        "appId": "com.gestureflow.app",
+        "productName": "GestureFlow",
+        "copyright": "Copyright © 2024 GestureFlow",
+        "mac": {
+            "category": "public.app-category.utilities",
+            "icon": "assets/icon.icns",
+            "target": [
+                "dmg",
+                "zip"
+            ],
+            "hardenedRuntime": true,
+            "gatekeeperAssess": false
+        },
+        "win": {
+            "icon": "assets/icon.ico",
+            "target": [
+                "nsis",
+                "portable"
+            ]
+        },
+        "linux": {
+            "icon": "assets/icon.png",
+            "target": [
+                "AppImage",
+                "deb"
+            ]
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "assets/**/*",
+            "../frontend/dist/**/*",
+            "../backend/**/*",
+            "!../backend/__pycache__",
+            "!../backend/venv",
+            "!../backend/*.log"
+        ],
+        "extraResources": [
+            {
+                "from": "../backend",
+                "to": "backend",
+                "filter": [
+                    "**/*",
+                    "!__pycache__",
+                    "!venv",
+                    "!*.log"
+                ]
+            }
+        ]
+    },
+    "devDependencies": {
+        "electron": "^28.0.0",
+        "electron-builder": "^24.9.1"
+    }
+}

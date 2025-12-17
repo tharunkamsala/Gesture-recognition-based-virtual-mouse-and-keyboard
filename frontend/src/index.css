@@ -1,0 +1,295 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: 14 165 233;
+  --color-accent: 217 70 239;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-gray-950 text-gray-100 antialiased;
+  background-image:
+    radial-gradient(at 0% 0%, rgb(14 165 233 / 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgb(217 70 239 / 0.1) 0px, transparent 50%);
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* High contrast mode */
+.high-contrast {
+  --color-primary: 255 255 255;
+  --color-accent: 255 255 0;
+}
+
+.high-contrast body {
+  @apply bg-black text-white;
+}
+
+.high-contrast .card {
+  @apply border-2 border-white bg-black;
+}
+
+.high-contrast button {
+  @apply border-2 border-white;
+}
+
+/* Accessibility: focus states */
+:focus-visible {
+  @apply outline-none ring-2 ring-primary-400 ring-offset-2 ring-offset-gray-950;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  @apply absolute -top-10 left-4 z-50 bg-primary-600 px-4 py-2 text-white transition-all;
+}
+
+.skip-link:focus {
+  @apply top-4;
+}
+
+/* Glass morphism cards */
+.card {
+  @apply rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.3);
+}
+
+.card-glow {
+  @apply card relative overflow-hidden;
+}
+
+.card-glow::before {
+  content: '';
+  @apply absolute -inset-0.5 -z-10 rounded-2xl bg-gradient-to-r from-primary-500 to-accent-500 opacity-0 blur transition-opacity duration-300;
+}
+
+.card-glow:hover::before {
+  @apply opacity-50;
+}
+
+/* Button styles */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-medium transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 focus:ring-offset-gray-950;
+}
+
+.btn-primary {
+  @apply btn bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25;
+  @apply hover:from-primary-500 hover:to-primary-400 hover:shadow-xl hover:shadow-primary-500/30;
+  @apply active:scale-[0.98];
+}
+
+.btn-secondary {
+  @apply btn border border-white/20 bg-white/5 text-white backdrop-blur-sm;
+  @apply hover:bg-white/10 hover:border-white/30;
+}
+
+.btn-accent {
+  @apply btn bg-gradient-to-r from-accent-600 to-accent-500 text-white shadow-lg shadow-accent-500/25;
+  @apply hover:from-accent-500 hover:to-accent-400;
+}
+
+.btn-large {
+  @apply min-h-[60px] min-w-[120px] text-lg;
+}
+
+/* Gesture indicator */
+.gesture-indicator {
+  @apply fixed bottom-4 right-4 z-50 rounded-full p-4;
+  @apply bg-gradient-to-r from-primary-600/90 to-accent-600/90 backdrop-blur-xl;
+  @apply shadow-2xl shadow-primary-500/30;
+  @apply animate-pulse-slow;
+}
+
+.gesture-indicator.active {
+  @apply from-green-500/90 to-emerald-500/90;
+  @apply shadow-green-500/30;
+  animation: none;
+}
+
+/* Webcam container */
+.webcam-container {
+  @apply relative overflow-hidden rounded-2xl;
+  @apply border-2 border-white/10;
+  @apply shadow-2xl shadow-black/50;
+}
+
+.webcam-container video {
+  @apply w-full h-auto;
+  transform: scaleX(-1);
+}
+
+.webcam-overlay {
+  @apply absolute inset-0 pointer-events-none;
+  transform: scaleX(-1);
+}
+
+/* Landmark visualization */
+.landmark-dot {
+  @apply absolute w-3 h-3 rounded-full bg-primary-400;
+  @apply shadow-lg shadow-primary-400/50;
+  transform: translate(-50%, -50%);
+}
+
+.landmark-connection {
+  @apply absolute bg-gradient-to-r from-primary-400 to-accent-400;
+  height: 2px;
+  transform-origin: left center;
+}
+
+/* Recording pulse */
+@keyframes recording-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.recording-indicator {
+  @apply inline-flex items-center gap-2 rounded-full bg-red-500/20 px-3 py-1 text-red-400;
+}
+
+.recording-indicator::before {
+  content: '';
+  @apply h-2 w-2 rounded-full bg-red-500;
+  animation: recording-pulse 1.5s ease-in-out infinite;
+}
+
+/* Toggle switch */
+.toggle {
+  @apply relative inline-block h-7 w-12 cursor-pointer;
+}
+
+.toggle input {
+  @apply sr-only;
+}
+
+.toggle-track {
+  @apply absolute inset-0 rounded-full bg-gray-700 transition-colors duration-200;
+}
+
+.toggle input:checked+.toggle-track {
+  @apply bg-primary-600;
+}
+
+.toggle-thumb {
+  @apply absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200;
+}
+
+.toggle input:checked~.toggle-thumb {
+  @apply translate-x-5;
+}
+
+/* Range slider */
+input[type="range"] {
+  @apply h-2 w-full appearance-none rounded-full bg-gray-700;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  @apply h-5 w-5 appearance-none rounded-full bg-primary-500 cursor-pointer;
+  @apply shadow-lg shadow-primary-500/30;
+}
+
+input[type="range"]::-moz-range-thumb {
+  @apply h-5 w-5 rounded-full bg-primary-500 border-0 cursor-pointer;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-900 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-700 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-600;
+}
+
+/* Animation utilities */
+.animate-in {
+  animation: slideUp 0.3s ease-out, fadeIn 0.2s ease-out;
+}
+
+/* Status badges */
+.badge {
+  @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium;
+}
+
+.badge-success {
+  @apply badge bg-green-500/20 text-green-400;
+}
+
+.badge-warning {
+  @apply badge bg-yellow-500/20 text-yellow-400;
+}
+
+.badge-error {
+  @apply badge bg-red-500/20 text-red-400;
+}
+
+.badge-info {
+  @apply badge bg-primary-500/20 text-primary-400;
+}
+
+/* Virtual Keyboard animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
