@@ -1213,6 +1213,485 @@ if (indexExtended && middleExtended) {
 
 ---
 
+## 11. How We Built It - Implementation Walkthrough
+
+This section explains **exactly how** each component was implemented, what methods and APIs we used, and why.
+
+---
+
+### 11.1 Video Capture Implementation
+
+#### Browser API Used: `getUserMedia`
+
+```javascript
+// Request camera access from the browser
+const stream = await navigator.mediaDevices.getUserMedia({
+    video: {
+        width: { ideal: 640 },    // Request 640px width
+        height: { ideal: 480 },   // Request 480px height
+        facingMode: 'user',       // Use front camera (selfie camera)
+        frameRate: { ideal: 30 }  // Request 30 FPS
+    },
+    audio: false  // We don't need audio
+});
+
+// Attach the video stream to an HTML video element
+videoElement.srcObject = stream;
+await videoElement.play();  // Start playing the video
+```
+
+#### How Video Frames are Processed
+
+```
+Video Stream Flow:
+
+[Webcam Hardware]
+       │
+       ▼  getUserMedia API (browser)
+[MediaStream Object]
+       │
+       ▼  Attach to <video> element
+[HTMLVideoElement] ──────────────────────────────┐
+       │                                          │
+       ▼  Every 33ms (30 FPS)                    │
+[MediaPipe.send({ image: video })]               │
+       │                                          │
+       ▼  ML inference (WebAssembly + WebGL)     │
+[21 Hand Landmarks]                              │
+       │                                          │
+       ▼  GestureDecoder.decode()                │
+[Gesture Type: "open_palm"]                      │
+       │                                          │
+       ▼  WebSocket.send()                       │
+[JSON message to backend]                        │
+                                                  │
+Meanwhile, canvas draws video for visualization ◀┘
+```
+
+#### Key Methods Used
+
+| Method | Purpose | API/Library |
+|--------|---------|-------------|
+| `navigator.mediaDevices.getUserMedia()` | Access camera | Browser WebRTC |
+| `video.srcObject = stream` | Display video | HTMLVideoElement |
+| `canvas.getContext('2d').drawImage()` | Draw frame | Canvas API |
+| `hands.send({ image: video })` | Process frame | MediaPipe |
+
+---
+
+### 11.2 Real-Time Communication Implementation
+
+#### Why We Chose WebSocket
+
+| Requirement | HTTP | WebSocket | Our Choice |
+|-------------|------|-----------|------------|
+| 30 messages/sec | ❌ Too slow | ✅ Perfect | WebSocket |
+| Bidirectional | ❌ Client-only | ✅ Both ways | WebSocket |
+| Low latency | ❌ 50-100ms | ✅ 1-5ms | WebSocket |
+| Connection cost | ❌ Per request | ✅ Once | WebSocket |
+
+#### Frontend WebSocket Implementation
+
+```typescript
+// 1. Create WebSocket connection
+const ws = new WebSocket('ws://localhost:8000/ws');
+
+// 2. Handle connection open
+ws.onopen = () => {
+    console.log('Connected to backend');
+    setConnected(true);
+};
+
+// 3. Handle incoming messages
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'control_status') {
+        setControlEnabled(data.enabled);
+    }
+};
+
+// 4. Handle errors
+ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+    setConnected(false);
+};
+
+// 5. Handle connection close
+ws.onclose = () => {
+    console.log('Disconnected from backend');
+    setConnected(false);
+    // Attempt reconnection
+    setTimeout(connectWebSocket, 2000);
+};
+
+// 6. Send gesture data
+function sendGesture(gesture, handX, handY) {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'gesture',
+            gesture: gesture,
+            hand_x: handX,
+            hand_y: handY,
+            timestamp: Date.now()
+        }));
+    }
+}
+```
+
+#### Backend WebSocket Implementation
+
+```python
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import json
+
+app = FastAPI()
+
+# Store active connections
+active_connections: list[WebSocket] = []
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    # 1. Accept the connection
+    await websocket.accept()
+    active_connections.append(websocket)
+    
+    try:
+        # 2. Send initial status
+        await websocket.send_json({
+            "type": "control_status",
+            "enabled": True
+        })
+        
+        # 3. Main message loop
+        while True:
+            # Wait for message from frontend
+            data = await websocket.receive_json()
+            
+            # 4. Process based on message type
+            if data['type'] == 'gesture':
+                gesture = data['gesture']
+                hand_x = data.get('hand_x')
+                hand_y = data.get('hand_y')
+                
+                # 5. Execute corresponding action
+                if gesture == 'open_palm':
+                    mouse.move_from_normalized(hand_x, hand_y)
+                elif gesture == 'fist':
+                    mouse.left_click()
+                elif gesture == 'pinch':
+                    mouse.left_click()
+                    
+    except WebSocketDisconnect:
+        # 6. Clean up on disconnect
+        active_connections.remove(websocket)
+        print("Client disconnected")
+```
+
+#### Message Protocol
+
+```json
+// Frontend → Backend (Gesture Event)
+{
+    "type": "gesture",
+    "gesture": "open_palm",      // Detected gesture name
+    "confidence": 0.95,          // Detection confidence (0-1)
+    "hand_x": 0.45,              // Palm center X (normalized 0-1)
+    "hand_y": 0.32,              // Palm center Y (normalized 0-1)
+    "wrist_x": 0.44,             // Wrist position X
+    "wrist_y": 0.35,             // Wrist position Y
+    "fingertip_x": 0.48,         // Index fingertip X
+    "fingertip_y": 0.28,         // Index fingertip Y
+    "fingertip_delta_y": 0.01,   // Vertical movement (for scroll)
+    "hand_index": 0              // Which hand (0 or 1)
+}
+
+// Backend → Frontend (Status Update)
+{
+    "type": "control_status",
+    "enabled": true,
+    "message": "Gesture control active"
+}
+
+// Backend → Frontend (Error)
+{
+    "type": "error",
+    "message": "Permission denied for mouse control"
+}
+```
+
+---
+
+### 11.3 Hand Detection Implementation
+
+#### MediaPipe Integration
+
+```typescript
+import { Hands, Results } from '@mediapipe/hands';
+
+// 1. Create MediaPipe Hands instance
+const hands = new Hands({
+    locateFile: (file) => {
+        // Load model files from CDN
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    }
+});
+
+// 2. Configure detection options
+hands.setOptions({
+    maxNumHands: 1,              // Detect max 1 hand (faster)
+    modelComplexity: 1,          // 0=lite, 1=full (more accurate)
+    minDetectionConfidence: 0.7, // Min confidence to detect
+    minTrackingConfidence: 0.5   // Min confidence to track
+});
+
+// 3. Register callback for results
+hands.onResults((results: Results) => {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        // Hand detected!
+        const landmarks = results.multiHandLandmarks[0];
+        // landmarks is array of 21 points, each with x, y, z
+        processLandmarks(landmarks);
+    }
+});
+
+// 4. Start detection loop
+async function detectLoop() {
+    await hands.send({ image: videoElement });
+    requestAnimationFrame(detectLoop);
+}
+```
+
+#### Palm Center Calculation
+
+```typescript
+// Why palm center instead of single landmark?
+// - More stable (averages out noise)
+// - Represents "center of hand" intuitively
+// - Less affected by finger movements
+
+function calculatePalmCenter(landmarks) {
+    // Use 3 stable points: wrist, index base, pinky base
+    const wrist = landmarks[0];      // Landmark 0
+    const indexMCP = landmarks[5];   // Landmark 5 (index knuckle)
+    const pinkyMCP = landmarks[17];  // Landmark 17 (pinky knuckle)
+    
+    // Average their positions
+    const palmX = (wrist.x + indexMCP.x + pinkyMCP.x) / 3;
+    const palmY = (wrist.y + indexMCP.y + pinkyMCP.y) / 3;
+    
+    return { palmX, palmY };
+}
+```
+
+---
+
+### 11.4 Gesture Classification Implementation
+
+#### Main Classification Method
+
+```typescript
+class GestureDecoder {
+    // Analyze each finger's state
+    private analyzeFinger(landmarks, fingerName) {
+        const indices = FINGER_INDICES[fingerName];
+        const tip = landmarks[indices.tip];
+        const pip = landmarks[indices.pip];
+        const mcp = landmarks[indices.mcp];
+        const wrist = landmarks[0];
+        
+        // Calculate distances
+        const tipToWrist = this.distance(tip, wrist);
+        const pipToWrist = this.distance(pip, wrist);
+        
+        // Finger is extended if tip is further from wrist
+        const isExtended = tipToWrist > pipToWrist * 1.1 || tip.y < pip.y;
+        
+        // Calculate curl amount (0 = straight, 1 = fully curled)
+        const curl = 1 - (tipToWrist / pipToWrist);
+        
+        // Calculate pointing direction
+        const direction = {
+            x: tip.x - mcp.x,
+            y: tip.y - mcp.y
+        };
+        
+        return { isExtended, curl, direction };
+    }
+    
+    // Main gesture classification
+    public classifyGesture(landmarks) {
+        const fingers = {
+            thumb: this.analyzeFinger(landmarks, 'thumb'),
+            index: this.analyzeFinger(landmarks, 'index'),
+            middle: this.analyzeFinger(landmarks, 'middle'),
+            ring: this.analyzeFinger(landmarks, 'ring'),
+            pinky: this.analyzeFinger(landmarks, 'pinky')
+        };
+        
+        // Check gestures in priority order
+        
+        // 1. FIST - no fingers extended
+        if (!fingers.index.isExtended && !fingers.middle.isExtended && 
+            !fingers.ring.isExtended && !fingers.pinky.isExtended) {
+            return 'fist';
+        }
+        
+        // 2. PINCH - thumb and index close together
+        const pinchDistance = this.distance(landmarks[4], landmarks[8]);
+        if (pinchDistance < 0.06) {
+            return 'pinch';
+        }
+        
+        // 3. VICTORY - index + middle only
+        if (fingers.index.isExtended && fingers.middle.isExtended &&
+            !fingers.ring.isExtended && !fingers.pinky.isExtended) {
+            return 'victory';
+        }
+        
+        // 4. THUMBS UP - only thumb
+        if (fingers.thumb.isExtended && !fingers.index.isExtended) {
+            return 'thumbs_up';
+        }
+        
+        // Default: OPEN PALM
+        return 'open_palm';
+    }
+}
+```
+
+---
+
+### 11.5 Mouse Control Implementation
+
+#### Relative Movement Algorithm
+
+```python
+class MouseController:
+    def __init__(self):
+        self.screen_width, self.screen_height = pyautogui.size()
+        self.prev_x = None
+        self.prev_y = None
+        self.relative_speed = 25.0  # Configurable sensitivity
+    
+    def move_from_normalized(self, norm_x, norm_y):
+        """
+        Convert normalized hand position (0-1) to cursor movement.
+        Uses RELATIVE movement like a mouse, not absolute mapping.
+        """
+        # First frame - initialize position
+        if self.prev_x is None:
+            self.prev_x = norm_x
+            self.prev_y = norm_y
+            return
+        
+        # Calculate how much hand moved (delta)
+        dx = norm_x - self.prev_x
+        dy = norm_y - self.prev_y
+        
+        # Save for next frame
+        self.prev_x = norm_x
+        self.prev_y = norm_y
+        
+        # Convert to pixels
+        # Formula: delta × screen_size × speed × multiplier
+        pixel_x = dx * self.screen_width * self.relative_speed * 0.25
+        pixel_y = dy * self.screen_height * self.relative_speed * 0.25
+        
+        # Move cursor (relative movement)
+        if abs(pixel_x) >= 0.5 or abs(pixel_y) >= 0.5:
+            pyautogui.move(
+                int(round(pixel_x)), 
+                int(round(pixel_y)),
+                _pause=False  # Don't add artificial delay
+            )
+    
+    def left_click(self):
+        """Perform left mouse click."""
+        pyautogui.click(_pause=False)
+    
+    def scroll(self, direction, amount=3):
+        """Scroll up or down."""
+        clicks = amount if direction == 'up' else -amount
+        pyautogui.scroll(clicks, _pause=False)
+    
+    def reset_tracking(self):
+        """Reset position tracking (prevents jump after action)."""
+        self.prev_x = None
+        self.prev_y = None
+```
+
+---
+
+### 11.6 Key Concepts Summary
+
+| Concept | What It Is | How We Used It |
+|---------|------------|----------------|
+| **Computer Vision** | AI understanding images | MediaPipe detects hands |
+| **Machine Learning** | Learning patterns from data | Pre-trained CNN for landmarks |
+| **WebAssembly** | Fast binary code in browser | MediaPipe runs WASM models |
+| **WebGL** | GPU in browser | Accelerates ML inference |
+| **WebSocket** | Real-time bidirectional comm | Stream gestures to backend |
+| **Async/Await** | Non-blocking code | Handle WebSocket smoothly |
+| **Event-Driven** | React to events | Process each frame |
+| **Signal Filtering** | Remove noise | Dead zone, smoothing |
+| **State Machine** | Track states over time | Hold threshold for gestures |
+
+---
+
+### 11.7 Libraries and Frameworks Used
+
+| Layer | Library | Version | Purpose |
+|-------|---------|---------|---------|
+| **Frontend** | React | 18.x | UI components |
+| **Frontend** | TypeScript | 5.x | Type safety |
+| **Frontend** | Vite | 5.x | Build tool |
+| **Frontend** | MediaPipe | 0.4.x | Hand detection |
+| **Backend** | FastAPI | 0.100+ | API server |
+| **Backend** | Uvicorn | 0.23+ | ASGI server |
+| **Backend** | PyAutoGUI | 0.9.x | Mouse control |
+| **Backend** | Pynput | 1.7.x | Keyboard control |
+
+---
+
+### 11.8 API Methods Reference
+
+#### Browser APIs
+
+```javascript
+// Camera access
+navigator.mediaDevices.getUserMedia({ video: true })
+
+// Canvas drawing
+ctx.drawImage(video, 0, 0)
+
+// WebSocket
+new WebSocket('ws://localhost:8000/ws')
+ws.send(JSON.stringify(data))
+ws.onmessage = (event) => {}
+
+// Keep page active in background
+navigator.locks.request('name', () => new Promise(() => {}))
+```
+
+#### Python Libraries
+
+```python
+# PyAutoGUI - Mouse/Keyboard
+pyautogui.move(dx, dy)           # Relative movement
+pyautogui.moveTo(x, y)           # Absolute movement
+pyautogui.click()                # Left click
+pyautogui.scroll(amount)         # Scroll
+pyautogui.size()                 # Screen resolution
+
+# FastAPI - Server
+@app.websocket("/ws")            # WebSocket endpoint
+await websocket.accept()         # Accept connection
+await websocket.receive_json()   # Get message
+await websocket.send_json(data)  # Send message
+```
+
+---
+
 ## Appendix: Quick Reference
 
 ### Gesture Detection Summary
@@ -1247,3 +1726,4 @@ if (indexExtended && middleExtended) {
 ---
 
 *This guide prepared for GestureFlow project interviews and technical discussions.*
+
